@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카페인과 내 심장: 심박동 시뮬레이션</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;700;900&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Noto Sans KR"', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#3B82F6',
+                        monster: '#10B981', // Green
+                        coffee: '#8B5A2B',  // Brown
+                        hot6: '#F59E0B',    // Orange
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Custom Animations for Heart */
+        .heart-svg {
+            transform-origin: center;
+        }
+
+        /* 1. Normal Heartbeat */
+        @keyframes beat-normal {
+            0%, 100% { transform: scale(1); }
+            15% { transform: scale(1.1); }
+            30% { transform: scale(1); }
+            45% { transform: scale(1.1); }
+            60% { transform: scale(1); }
+        }
+        .animate-normal {
+            animation: beat-normal 1.5s infinite;
+        }
+
+        /* 2. Fast/Sensitive Heartbeat (Palpitations & Shaking) */
+        @keyframes beat-fast {
+            0%, 100% { transform: scale(1) translate(0, 0); }
+            10% { transform: scale(1.2) translate(-2px, 2px); }
+            20% { transform: scale(1) translate(2px, -1px); }
+            30% { transform: scale(1.25) translate(-1px, -2px); }
+            40% { transform: scale(1) translate(1px, 2px); }
+        }
+        .animate-fast {
+            animation: beat-fast 0.4s infinite;
+            filter: drop-shadow(0 0 15px rgba(239, 68, 68, 0.8));
+        }
+
+        /* 3. Slow/Insensitive Heartbeat */
+        @keyframes beat-slow {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        .animate-slow {
+            animation: beat-slow 3s infinite;
+        }
+
+        /* Floating Zzz for Sleepy Heart */
+        @keyframes float-zzz {
+            0% { opacity: 0; transform: translateY(0) scale(0.5); }
+            50% { opacity: 1; transform: translateY(-20px) scale(1); }
+            100% { opacity: 0; transform: translateY(-40px) scale(1.5); }
+        }
+        .zzz-mark {
+            display: none;
+            position: absolute;
+            color: #6366f1;
+            font-weight: bold;
+            font-size: 1.5rem;
+            animation: float-zzz 2s infinite linear;
+        }
+        .zzz-1 { right: 20px; top: 20px; animation-delay: 0s; }
+        .zzz-2 { right: 10px; top: 0px; animation-delay: 0.7s; }
+        .zzz-3 { right: 30px; top: -20px; animation-delay: 1.4s; }
+
+        .show-zzz .zzz-mark { display: block; }
+        
+        /* Sweat drops for fast heart */
+        .sweat-mark {
+            display: none;
+            position: absolute;
+            color: #60a5fa;
+            font-size: 1.2rem;
+        }
+        .show-sweat .sweat-mark { display: block; animation: float-zzz 0.5s infinite linear; }
+        .sweat-1 { left: 10px; top: 10px; animation-delay: 0s; }
+        .sweat-2 { right: 10px; top: 30px; animation-delay: 0.2s; }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+
+    <div class="max-w-5xl mx-auto p-4 md:p-6 lg:p-8">
+        
+        <!-- Header -->
+        <header class="text-center mb-10 mt-6">
+            <h1 class="text-3xl md:text-4xl font-black text-slate-900 mb-3 tracking-tight">
+                <i class="fa-solid fa-heart-pulse text-red-500 mr-2"></i>카페인과 내 심장 시뮬레이션
+            </h1>
+            <p class="text-slate-500 text-lg">고카페인 음료가 내 몸에 어떤 영향을 미치는지 직접 확인해 보세요!</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <!-- Controls Sidebar -->
+            <div class="lg:col-span-4 space-y-6">
+                
+                <!-- Step 1: Drink Selection -->
+                <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <span class="bg-blue-100 text-blue-600 w-8 h-8 rounded-full flex items-center justify-center mr-2 text-sm">1</span>
+                        음료 선택하기
+                    </h2>
+                    <div class="space-y-3">
+                        <button onclick="selectDrink('monster')" id="btn-monster" class="w-full text-left p-4 rounded-xl border-2 border-slate-200 hover:border-monster hover:bg-green-50 transition-all group relative overflow-hidden">
+                            <div class="flex items-center">
+                                <i class="fa-solid fa-bolt text-2xl text-monster w-8"></i>
+                                <div>
+                                    <h3 class="font-bold text-slate-800 group-hover:text-monster">몬스터 에너지</h3>
+                                    <p class="text-xs text-slate-500">카페인 100mg / 밤샘 필수템</p>
+                                </div>
+                            </div>
+                        </button>
+                        
+                        <button onclick="selectDrink('coffee')" id="btn-coffee" class="w-full text-left p-4 rounded-xl border-2 border-slate-200 hover:border-coffee hover:bg-orange-50 transition-all group">
+                            <div class="flex items-center">
+                                <i class="fa-solid fa-mug-hot text-2xl text-coffee w-8"></i>
+                                <div>
+                                    <h3 class="font-bold text-slate-800 group-hover:text-coffee">대용량 프랜차이즈 커피</h3>
+                                    <p class="text-xs text-slate-500">카페인 200mg+ / 짐승용량 32oz</p>
+                                </div>
+                            </div>
+                        </button>
+
+                        <button onclick="selectDrink('hot6')" id="btn-hot6" class="w-full text-left p-4 rounded-xl border-2 border-slate-200 hover:border-hot6 hover:bg-yellow-50 transition-all group">
+                            <div class="flex items-center">
+                                <i class="fa-solid fa-fire text-2xl text-hot6 w-8"></i>
+                                <div>
+                                    <h3 class="font-bold text-slate-800 group-hover:text-hot6">핫식스 더 킹</h3>
+                                    <p class="text-xs text-slate-500">카페인 100mg / 편의점 대표</p>
+                                </div>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Step 2: Sensitivity Selection -->
+                <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <span class="bg-blue-100 text-blue-600 w-8 h-8 rounded-full flex items-center justify-center mr-2 text-sm">2</span>
+                        나의 체질 선택
+                    </h2>
+                    <div class="space-y-3">
+                        <button onclick="selectType('normal')" id="btn-normal" class="w-full text-left p-4 rounded-xl border-2 border-slate-200 hover:border-blue-500 hover:bg-blue-50 transition-all opacity-50 pointer-events-none transition-opacity duration-300">
+                            <div class="flex items-center">
+                                <i class="fa-regular fa-face-smile text-2xl text-blue-500 w-8"></i>
+                                <div>
+                                    <h3 class="font-bold text-slate-800">일반적인 학생</h3>
+                                    <p class="text-xs text-slate-500">적당한 각성, 평범한 반응</p>
+                                </div>
+                            </div>
+                        </button>
+                        
+                        <button onclick="selectType('sensitive')" id="btn-sensitive" class="w-full text-left p-4 rounded-xl border-2 border-slate-200 hover:border-red-500 hover:bg-red-50 transition-all opacity-50 pointer-events-none transition-opacity duration-300">
+                            <div class="flex items-center">
+                                <i class="fa-regular fa-face-dizzy text-2xl text-red-500 w-8"></i>
+                                <div>
+                                    <h3 class="font-bold text-slate-800">카페인 민감형 (카페인 찌질이)</h3>
+                                    <p class="text-xs text-slate-500">심박수 급증, 손떨림, 불면증</p>
+                                </div>
+                            </div>
+                        </button>
+
+                        <button onclick="selectType('insensitive')" id="btn-insensitive" class="w-full text-left p-4 rounded-xl border-2 border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 transition-all opacity-50 pointer-events-none transition-opacity duration-300">
+                            <div class="flex items-center">
+                                <i class="fa-regular fa-face-sleeping text-2xl text-indigo-500 w-8"></i>
+                                <div>
+                                    <h3 class="font-bold text-slate-800">카페인 둔감형 (강철 심장)</h3>
+                                    <p class="text-xs text-slate-500">아무리 마셔도 졸림, 반응 없음</p>
+                                </div>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Action Button -->
+                <button onclick="runSimulation()" id="btn-run" class="w-full py-4 rounded-xl bg-slate-300 text-slate-500 font-bold text-lg cursor-not-allowed transition-all duration-300">
+                    시뮬레이션 시작하기
+                </button>
+
+            </div>
+
+            <!-- Dashboard Area -->
+            <div class="lg:col-span-8 flex flex-col space-y-6">
+                
+                <!-- Simulation Results UI (Hidden initially) -->
+                <div id="simulation-panel" class="hidden h-full flex flex-col space-y-6 opacity-0 transition-opacity duration-500">
+                    
+                    <!-- Top row: Heart Animation & Status Text -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Animated Heart Container -->
+                        <div class="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-2xl shadow-inner p-8 flex justify-center items-center relative overflow-hidden border border-blue-100 min-h-[250px]">
+                            
+                            <!-- Heart Status Message -->
+                            <div id="heart-status-badge" class="absolute top-4 left-4 bg-white/80 backdrop-blur px-3 py-1 rounded-full text-sm font-bold text-slate-700 shadow-sm">
+                                대기 중...
+                            </div>
+
+                            <div id="heart-container" class="relative">
+                                <!-- Zzz marks for insensitive -->
+                                <div class="zzz-1 zzz-mark">z</div>
+                                <div class="zzz-2 zzz-mark">Z</div>
+                                <div class="zzz-3 zzz-mark">z</div>
+                                
+                                <!-- Sweat marks for sensitive -->
+                                <div class="sweat-1 sweat-mark"><i class="fa-solid fa-droplet"></i></div>
+                                <div class="sweat-2 sweat-mark"><i class="fa-solid fa-droplet"></i></div>
+
+                                <!-- SVG Heart -->
+                                <svg id="main-heart" class="heart-svg w-32 h-32 md:w-40 md:h-40 transition-all duration-300" viewBox="0 0 24 24" fill="#ef4444" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                                    <!-- Cute face elements -->
+                                    <g id="heart-face">
+                                        <!-- Eyes -->
+                                        <circle cx="8" cy="10" r="1.5" fill="white"/>
+                                        <circle cx="16" cy="10" r="1.5" fill="white"/>
+                                        <!-- Smile -->
+                                        <path d="M9 13 Q12 15 15 13" stroke="white" stroke-width="1.5" fill="transparent" stroke-linecap="round"/>
+                                    </g>
+                                    <g id="heart-face-dizzy" style="display:none;">
+                                        <path d="M7 9 L10 11 M10 9 L7 11" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+                                        <path d="M14 9 L17 11 M17 9 L14 11" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+                                        <!-- Wavy mouth -->
+                                        <path d="M9 14 Q10.5 12 12 14 T15 14" stroke="white" stroke-width="1.5" fill="transparent" stroke-linecap="round"/>
+                                    </g>
+                                    <g id="heart-face-sleep" style="display:none;">
+                                        <path d="M7 10 Q8.5 12 10 10" stroke="white" stroke-width="1.5" fill="transparent" stroke-linecap="round"/>
+                                        <path d="M14 10 Q15.5 12 17 10" stroke="white" stroke-width="1.5" fill="transparent" stroke-linecap="round"/>
+                                        <!-- Little open mouth -->
+                                        <circle cx="12" cy="14" r="1" fill="white"/>
+                                    </g>
+                                </svg>
+                            </div>
+                        </div>
+
+                        <!-- Result Explanation -->
+                        <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100 flex flex-col justify-center">
+                            <h3 id="result-title" class="text-2xl font-black mb-3">결과 분석</h3>
+                            <p id="result-desc" class="text-slate-600 leading-relaxed mb-4">
+                                좌측에서 음료와 체질을 선택한 후 시뮬레이션 버튼을 눌러주세요.
+                            </p>
+                            
+                            <!-- Warning Alert (Conditional) -->
+                            <div id="warning-alert" class="hidden bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg mt-auto">
+                                <div class="flex items-start">
+                                    <i class="fa-solid fa-triangle-exclamation text-red-500 mt-1 mr-3"></i>
+                                    <div>
+                                        <p class="font-bold text-red-800 text-sm">경고: 과부하 발생!</p>
+                                        <p class="text-red-600 text-xs mt-1">심장이 너무 빨리 뛰면 불안감, 수전증, 불면증을 유발하여 오히려 학습 효율이 떨어집니다.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Addiction Alert (Conditional) -->
+                            <div id="addiction-alert" class="hidden bg-indigo-50 border-l-4 border-indigo-500 p-4 rounded-r-lg mt-auto">
+                                <div class="flex items-start">
+                                    <i class="fa-solid fa-capsules text-indigo-500 mt-1 mr-3"></i>
+                                    <div>
+                                        <p class="font-bold text-indigo-800 text-sm">주의: 카페인 내성 의심</p>
+                                        <p class="text-indigo-600 text-xs mt-1">효과가 없다고 계속 마시면 심장에는 부담이 누적되며, 심각한 카페인 중독으로 이어질 수 있습니다.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Graph Chart Area -->
+                    <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100 flex-grow relative">
+                        <h3 class="text-lg font-bold mb-4">시간에 따른 심박수 변화 그래프</h3>
+                        <div class="relative h-64 w-full">
+                            <canvas id="hrChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Initial Empty State -->
+                <div id="empty-state" class="h-full flex flex-col items-center justify-center bg-white rounded-2xl shadow-sm p-10 border border-slate-100 border-dashed text-slate-400">
+                    <i class="fa-solid fa-stethoscope text-6xl mb-4 text-slate-200"></i>
+                    <p class="text-lg font-medium">옵션을 선택하고 시뮬레이션을 시작하세요</p>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Step 3: Self Study / Reflection -->
+        <div class="mt-8 bg-blue-50 rounded-2xl p-6 md:p-8 border border-blue-100">
+            <h2 class="text-2xl font-black text-blue-900 mb-6 flex items-center">
+                <i class="fa-solid fa-pen-to-square mr-3"></i> 활동지: 나의 심장 탐구하기
+            </h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Question 1 -->
+                <div class="bg-white p-5 rounded-xl shadow-sm">
+                    <h4 class="font-bold text-blue-800 mb-2">Q1. 내 심장 분석하기</h4>
+                    <p class="text-sm text-slate-600 mb-3">나는 세 가지 유형 중 어디에 속하는 것 같나요? 고카페인 음료를 마셨을 때 경험했던 신체 변화를 적어봅시다.</p>
+                    <textarea class="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm resize-none focus:ring-2 focus:ring-blue-400 focus:outline-none" rows="4" placeholder="예: 나는 민감형인 것 같다. 시험기간에 몬스터를 마셨다가 심장이 쿵쾅거려서 오히려 집중을 못했다."></textarea>
+                </div>
+                
+                <!-- Question 2 -->
+                <div class="bg-white p-5 rounded-xl shadow-sm">
+                    <h4 class="font-bold text-blue-800 mb-2">Q2. 자율신경계와의 관계</h4>
+                    <p class="text-sm text-slate-600 mb-3">'카페인 민감형' 학생의 그래프가 유독 가파른 이유는 우리 몸의 '교감신경'과 어떤 관련이 있을까요?</p>
+                    <textarea class="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm resize-none focus:ring-2 focus:ring-blue-400 focus:outline-none" rows="4" placeholder="생명과학 시간에 배운 개념을 떠올려보자. 교감신경이 흥분하면..."></textarea>
+                </div>
+
+                <!-- Question 3 -->
+                <div class="bg-white p-5 rounded-xl shadow-sm">
+                    <h4 class="font-bold text-blue-800 mb-2">Q3. 건강한 대안 찾기</h4>
+                    <p class="text-sm text-slate-600 mb-3">시험 기간, 고카페인 음료 대신 심장에 무리를 주지 않고 집중력을 높일 수 있는 나만의 방법을 적어봅시다.</p>
+                    <textarea class="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm resize-none focus:ring-2 focus:ring-blue-400 focus:outline-none" rows="4" placeholder="예: 10분 가벼운 스트레칭 하기, 찬물로 세수하기 등"></textarea>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // State Variables
+        let selectedDrink = null;
+        let selectedType = null;
+        let myChart = null;
+
+        // Drink Data
+        const drinkData = {
+            monster: { name: '몬스터 에너지', color: '#10B981', caffeine: 100 },
+            coffee: { name: '대용량 커피', color: '#8B5A2B', caffeine: 250 },
+            hot6: { name: '핫식스 더 킹', color: '#F59E0B', caffeine: 100 }
+        };
+
+        // Type Data (Text descriptions for UI)
+        const typeData = {
+            normal: { title: '일반적인 학생', desc: '적당한 각성 효과가 나타나지만, 심장이 무리하지는 않는 구간입니다.' },
+            sensitive: { title: '카페인 민감형', desc: '심장이 비정상적으로 빨리 뛰어 오히려 집중력이 떨어지고 불안감이 커집니다.' },
+            insensitive: { title: '카페인 둔감형', desc: '심장 박동에 큰 변화가 없습니다. 하지만 카페인 분해 능력이 뛰어난 것이 아니라 내성이 생겼을 가능성이 높습니다.' }
+        };
+
+        // Initialize Chart
+        function initChart() {
+            const ctx = document.getElementById('hrChart').getContext('2d');
+            
+            // Empty initial chart
+            myChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['0분', '15분', '30분', '45분', '60분', '75분', '90분', '105분', '120분'],
+                    datasets: [{
+                        label: '심박수 (BPM)',
+                        data: [80, 80, 80, 80, 80, 80, 80, 80, 80],
+                        borderColor: '#94a3b8',
+                        backgroundColor: 'rgba(148, 163, 184, 0.1)',
+                        borderWidth: 3,
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#fff',
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.parsed.y + ' BPM';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            min: 60,
+                            max: 180,
+                            title: { display: true, text: '심박수 (BPM)' },
+                            grid: { color: '#f1f5f9' }
+                        },
+                        x: {
+                            grid: { display: false }
+                        }
+                    },
+                    animation: {
+                        duration: 2000,
+                        easing: 'easeOutQuart'
+                    }
+                }
+            });
+        }
+
+        // Selection Logic
+        function selectDrink(drink) {
+            selectedDrink = drink;
+            
+            // Reset drink buttons
+            ['monster', 'coffee', 'hot6'].forEach(d => {
+                document.getElementById(`btn-${d}`).classList.remove('ring-4', 'ring-opacity-50', `ring-${drinkData[d].color.replace('#','')}`, `border-${drinkData[d].color.replace('#','')}`, 'bg-slate-50');
+                // We use raw hex for custom colors in tailwind config, so let's just use generic styles for selection
+                if(d === drink) {
+                    document.getElementById(`btn-${d}`).classList.add('border-slate-800', 'bg-slate-100', 'shadow-md');
+                } else {
+                    document.getElementById(`btn-${d}`).classList.remove('border-slate-800', 'bg-slate-100', 'shadow-md');
+                }
+            });
+
+            // Enable type buttons
+            ['normal', 'sensitive', 'insensitive'].forEach(t => {
+                let btn = document.getElementById(`btn-${t}`);
+                btn.classList.remove('opacity-50', 'pointer-events-none');
+            });
+
+            checkReady();
+        }
+
+        function selectType(type) {
+            selectedType = type;
+
+            ['normal', 'sensitive', 'insensitive'].forEach(t => {
+                let btn = document.getElementById(`btn-${t}`);
+                if(t === type) {
+                    btn.classList.add('border-slate-800', 'bg-slate-100', 'shadow-md');
+                } else {
+                    btn.classList.remove('border-slate-800', 'bg-slate-100', 'shadow-md');
+                }
+            });
+
+            checkReady();
+        }
+
+        function checkReady() {
+            const runBtn = document.getElementById('btn-run');
+            if(selectedDrink && selectedType) {
+                runBtn.classList.remove('bg-slate-300', 'text-slate-500', 'cursor-not-allowed');
+                runBtn.classList.add('bg-blue-600', 'text-white', 'hover:bg-blue-700', 'shadow-lg');
+            }
+        }
+
+        // Generate Simulation Data
+        function generateGraphData(type, caffeineAmount) {
+            // Base logic: 9 time points (0 to 120 mins, 15 min intervals)
+            const baseHR = 80;
+            let data = [];
+            
+            // Modifier based on caffeine amount (Coffee has more than Monster/Hot6)
+            let doseMultiplier = caffeineAmount > 150 ? 1.2 : 1.0;
+
+            if (type === 'normal') {
+                // Smooth rise to ~95-105, then slow drop
+                const maxIncrease = 20 * doseMultiplier;
+                data = [
+                    baseHR,
+                    baseHR + (maxIncrease * 0.4),
+                    baseHR + (maxIncrease * 0.8),
+                    baseHR + maxIncrease, // Peak at 45m
+                    baseHR + (maxIncrease * 0.9),
+                    baseHR + (maxIncrease * 0.7),
+                    baseHR + (maxIncrease * 0.5),
+                    baseHR + (maxIncrease * 0.3),
+                    baseHR + (maxIncrease * 0.1)
+                ];
+            } else if (type === 'sensitive') {
+                // Sharp spike to 130-150+, jagged
+                const maxIncrease = 60 * doseMultiplier;
+                data = [
+                    baseHR,
+                    baseHR + (maxIncrease * 0.6) + (Math.random()*10 - 5),
+                    baseHR + maxIncrease + (Math.random()*15 - 7), // Peak 30m
+                    baseHR + (maxIncrease * 0.9) + (Math.random()*20 - 10), // Jagged drop
+                    baseHR + (maxIncrease * 0.8) + (Math.random()*15 - 7),
+                    baseHR + (maxIncrease * 0.6) + (Math.random()*10 - 5),
+                    baseHR + (maxIncrease * 0.4),
+                    baseHR + (maxIncrease * 0.3),
+                    baseHR + (maxIncrease * 0.2)
+                ];
+            } else if (type === 'insensitive') {
+                // Very slight bump, almost flat
+                const maxIncrease = 5 * doseMultiplier;
+                data = [
+                    baseHR,
+                    baseHR + (maxIncrease * 0.5),
+                    baseHR + maxIncrease, // Peak 30m
+                    baseHR + maxIncrease,
+                    baseHR + (maxIncrease * 0.8),
+                    baseHR + (maxIncrease * 0.5),
+                    baseHR + (maxIncrease * 0.2),
+                    baseHR,
+                    baseHR
+                ];
+            }
+            
+            // Round all to integers
+            return data.map(val => Math.round(val));
+        }
+
+        // Run Simulation
+        function runSimulation() {
+            if(!selectedDrink || !selectedType) return;
+
+            // UI Transitions
+            document.getElementById('empty-state').classList.add('hidden');
+            const simPanel = document.getElementById('simulation-panel');
+            simPanel.classList.remove('hidden');
+            
+            // Force reflow for fade in
+            void simPanel.offsetWidth;
+            simPanel.classList.remove('opacity-0');
+
+            const drink = drinkData[selectedDrink];
+            const type = typeData[selectedType];
+
+            // 1. Update Texts
+            document.getElementById('result-title').innerHTML = `<span style="color:${drink.color}">${drink.name}</span> 섭취 후 <br class="hidden md:block"/> <span class="text-blue-600">${type.title}</span>의 변화`;
+            document.getElementById('result-desc').textContent = type.desc;
+
+            // Manage Alerts
+            document.getElementById('warning-alert').classList.add('hidden');
+            document.getElementById('addiction-alert').classList.add('hidden');
+            
+            if(selectedType === 'sensitive') {
+                document.getElementById('warning-alert').classList.remove('hidden');
+            } else if (selectedType === 'insensitive') {
+                document.getElementById('addiction-alert').classList.remove('hidden');
+            }
+
+            // 2. Update Heart Animation & Faces
+            const heart = document.getElementById('main-heart');
+            const container = document.getElementById('heart-container');
+            const badge = document.getElementById('heart-status-badge');
+            
+            // Reset classes & faces
+            heart.classList.remove('animate-normal', 'animate-fast', 'animate-slow');
+            container.classList.remove('show-zzz', 'show-sweat');
+            document.getElementById('heart-face').style.display = 'none';
+            document.getElementById('heart-face-dizzy').style.display = 'none';
+            document.getElementById('heart-face-sleep').style.display = 'none';
+            heart.setAttribute('fill', '#ef4444'); // Default red
+
+            if(selectedType === 'normal') {
+                heart.classList.add('animate-normal');
+                document.getElementById('heart-face').style.display = 'block';
+                badge.innerHTML = '<i class="fa-solid fa-check text-green-500"></i> 안정적 박동';
+            } else if (selectedType === 'sensitive') {
+                heart.classList.add('animate-fast');
+                container.classList.add('show-sweat');
+                document.getElementById('heart-face-dizzy').style.display = 'block';
+                badge.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-red-500"></i> 심박수 과부하!';
+                heart.setAttribute('fill', '#dc2626'); // Darker red for stress
+            } else if (selectedType === 'insensitive') {
+                heart.classList.add('animate-slow');
+                container.classList.add('show-zzz');
+                document.getElementById('heart-face-sleep').style.display = 'block';
+                badge.innerHTML = '<i class="fa-solid fa-bed text-indigo-500"></i> 반응 없음 (둔감)';
+                heart.setAttribute('fill', '#fca5a5'); // Lighter red/pink
+            }
+
+            // 3. Update Chart
+            const newData = generateGraphData(selectedType, drink.caffeine);
+            
+            // Change line color based on type
+            let lineColor = '#3B82F6'; // normal blue
+            let bgColor = 'rgba(59, 130, 246, 0.1)';
+            if(selectedType === 'sensitive') {
+                lineColor = '#EF4444'; // red
+                bgColor = 'rgba(239, 68, 68, 0.1)';
+            } else if (selectedType === 'insensitive') {
+                lineColor = '#6366F1'; // indigo
+                bgColor = 'rgba(99, 102, 241, 0.1)';
+            }
+
+            myChart.data.datasets[0].data = newData;
+            myChart.data.datasets[0].borderColor = lineColor;
+            myChart.data.datasets[0].backgroundColor = bgColor;
+            myChart.update();
+            
+            // Scroll to results on mobile
+            if(window.innerWidth < 1024) {
+                simPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+
+        // Initialize on load
+        window.onload = function() {
+            initChart();
+        };
+
+    </script>
+</body>
+</html>
